@@ -15,6 +15,12 @@
                  (string-match "\\`[[:alnum:]]" file))
         (add-to-list 'load-path (expand-file-name file default-directory))))))
 
+;;; special osx path addition
+(getenv "PATH")
+(setenv "PATH"
+        (concat "/Library/TeX/texbin" ":"
+                (getenv "PATH")))
+
 (setq inhibit-splash-screen t)
 (setq inhibit-default-init t)
 ;; ignore case in completion
@@ -25,16 +31,17 @@
 
 ;; set window title, turn toolbars and stuff off
 (setq frame-title-format '("%b - GNU Emacs"))
-(tooltip-mode -1)
-(menu-bar-mode -1)
+(tooltip-mode 1)
+(menu-bar-mode 1)
 (blink-cursor-mode -1)
 (mouse-avoidance-mode 'banish)
 (if (or (display-graphic-p)
         (daemonp))
     (progn
-      (tool-bar-mode -1)
-      (scroll-bar-mode -1)))
+      (tool-bar-mode 1)
+      (scroll-bar-mode 1)))
 (global-unset-key (kbd "C-z"))
+(global-unset-key (kbd "s-q"))
 ;;; disable this as it ruins keyboard macros
 (setq line-move-visual nil)
 
@@ -470,7 +477,7 @@ RECURRENCES occasions."
 
 ;;; setup default file readers
 (eval-after-load "org"
-  '(setcdr (assoc "\\.pdf\\'" org-file-apps) "evince %s"))
+  '(setcdr (assoc "\\.pdf\\'" org-file-apps) "open %s"))
 
 ;; *** end org-mode stuff ***
 
@@ -482,6 +489,9 @@ RECURRENCES occasions."
 (setq c-auto-newline 1)
 (setq c-hungry-delete-key 1)
 
+(setq ispell-program-name "/usr/local/bin/aspell")
+(setq ispell-dictionary "british")
+
 ;; turn on flyspell for text and org-mode
 (dolist (hook '(text-mode-hook org-mode-hook))
   (add-hook hook (lambda () (flyspell-mode 1))))
@@ -489,6 +499,11 @@ RECURRENCES occasions."
   (add-hook hook (lambda () (flyspell-mode -1))))
 
 (setq flyspell-issue-message-flag -1)
+
+(eval-after-load "flyspell"
+    '(progn
+       (define-key flyspell-mouse-map [s-mouse-1] #'flyspell-correct-word)
+       (define-key flyspell-mouse-map [mouse-3] #'undefined)))
 
 ;; enable parens matching
 (show-paren-mode t)
