@@ -40,7 +40,7 @@
     (progn
       (tool-bar-mode 1)
       (scroll-bar-mode 1)))
-(global-unset-key (kbd "C-z"))
+;;(global-unset-key (kbd "C-z"))
 (global-unset-key (kbd "s-q"))
 ;;; disable this as it ruins keyboard macros
 (setq line-move-visual nil)
