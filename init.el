@@ -44,11 +44,14 @@
 (global-unset-key (kbd "s-q"))
 ;;; disable this as it ruins keyboard macros
 (setq line-move-visual nil)
+;; prefer to split windows vertically even on tall monitor
+(setq split-height-threshold 160)
+(setq split-width-threshold 160)
 
 (require 'cl-lib)
 
 ;; remove old org from load path
-;; (setq load-path (remove-if (lambda (x) (string-match-p "org$" x)) load-path))
+(setq load-path (cl-remove-if (lambda (x) (string-match-p "org$" x)) load-path))
 
 ;; add paths
 ;; (add-to-path-init load-path ".")
@@ -76,6 +79,9 @@
 ;;   (message "Desktop saved."))
 ;; (setq desktop-timer
 ;;  (run-with-timer 0 (* 10 60) #'save-desktop))
+
+;; global keys
+(global-set-key (kbd "C-M-/") 'indent-region)
 
 ;; ido mode
 (require 'ido)
@@ -111,14 +117,6 @@
       ;; not daemon
     (save-buffers-kill-emacs)))
 (global-set-key (kbd "C-x C-c") 'kill-client-or-daemon)
-
-;; files ignored when saving all buffers
-(defvar save-ignored-files
-  '(".newsrc-dribble"))
-(defun save-all-considered ()
-  (not (member (buffer-name) save-ignored-files)))
-(global-set-key (kbd "C-x s") (lambda () (interactive)
-                                (save-some-buffers nil 'save-all-considered)))
 
 ;; turn off tabs
 (setq-default indent-tabs-mode nil)
@@ -264,9 +262,10 @@
   (nice-paredit-on)
   (yas/minor-mode -1)
   (local-set-key (kbd "TAB") #'elisp-magic-tab)
-  (local-set-key (kbd "C-c C-b") #'eval-buffer-key)
+  (local-set-key (kbd "C-c C-k") #'eval-buffer-key)
   (local-set-key (kbd "C-c C-c") #'eval-defun-key)
   (local-set-key (kbd "C-c C-z") #'ielm-switch-to-buffer)
+  (local-set-key (kbd "C-c z") #'ielm-switch-to-buffer)
   (local-set-key (kbd "C-c C-l") #'paredit-recentre-on-sexp)
   (local-set-key (kbd "C-c e") #'macrostep-expand)
   (local-set-key (kbd "C-c d") #'toggle-debug-on-error))
@@ -287,7 +286,8 @@
                  'ielm-send-input))
 
 ;;; *** scheme ***
-(add-hook 'scheme-mode-hook 'nice-paredit-on)
+(makehookedfun scheme-mode-hook
+  (nice-paredit-on))
 
 ;;; *** SLIME ***
 (setq inferior-lisp-program "/usr/bin/sbcl") ; your Lisp system
@@ -331,6 +331,14 @@
 ;;; *** org-mode settings ***
 (require 'org)
 (add-to-list 'auto-mode-alist '("\\.org$" . org-mode))
+
+(makehookedfun org-mode-hook
+  (auto-fill-mode)
+  (org-bullets-mode 1)
+  (flyspell-mode 1)
+  (local-set-key (kbd "M-p") #'org-metaup)
+  (local-set-key (kbd "M-n") #'org-metadown))
+
 (setq org-directory "~/org/")
 (defmacro orgdr (&optional filename)
   (if filename
@@ -338,8 +346,7 @@
    org-directory))
 (setq org-return-follows-link t)
 
-(makehookedfun org-mode-hook
-  (auto-fill-mode))
+(require 'org-bullets)
 
 ;; src
 (setq org-src-fontify-natively t)
@@ -349,28 +356,31 @@
  '((lisp . t)
    (sqlite . t)
    (R . t)
-   (sh . t)))
+   (shell . t)
+   (python . t)))
 
 ;;; export
-(setq org-latex-to-pdf-process '("latexmk -pdf %f")) ;use latexmk to do pdfs
+(setq org-export-allow-bind-keywords t)
+(require 'htmlize)
+;;; org-reveal
+(require 'ox-reveal)
+(setq org-reveal-root (concat "file://" init-path "/misc/reveal.js"))
+(setq org-reveal-init-script "zoomKey: 'shift'")
 
-;;; change wasysym include to stop clashing with amsmath's \iint symbol
-(setq org-export-latex-default-packages-alist
-      '(("AUTO" "inputenc" t)
-        ("T1" "fontenc" t)
-        ("" "fixltx2e" nil)
-        ("" "graphicx" t)
-        ("" "longtable" nil)
-        ("" "float" nil)
-        ("" "wrapfig" nil)
-        ("" "soul" t)
-        ("" "textcomp" t)
-        ("" "marvosym" t)
-        ("nointegrals" "wasysym" t)
-        ("" "latexsym" t)
-        ("" "amssymb" t)
-        ("" "hyperref" nil)
-        "\\tolerance=1000"))
+;;; twbs
+(require 'ox-twbs)
+;;; latex
+(require 'ox-latex)
+(setq org-latex-to-pdf-process '("latexmk -pdf %f")) ;use latexmk to do pdfs
+(setq org-export-latex-listings 'minted)
+;(add-to-list 'org-export-latex-default-packages-alist '("" "minted"))
+
+;;; export with CSS classes instead of explicit colours
+(setq org-html-htmlize-output-type 'css)
+(setq org-html-htmlize-font-prefix "org-")
+
+(setq org-twbs-htmlize-output-type 'css)
+(setq org-twbs-htmlize-font-prefix "org-")
 
 ;; capture
 (setq org-default-notes-file (orgdr "notes.org"))
@@ -403,7 +413,7 @@
 (setq org-log-done 'time)
 (setq org-blank-before-new-entry 
       '((heading . t) (plain-list-item . nil)))
-(setq org-todo-keywords (quote ((sequence "TODO" "DONE"))))
+(setq org-todo-keywords (quote((sequence "TODO" "WAITING" "|" "DONE"))))
 ;; make org table mode come on for some modes
 
 ;; (add-to-list 'org-modules 'org-timer)
@@ -444,37 +454,6 @@ RECURRENCES occasions."
   "Convert a number of minutes to an HHMM time"
   (+ (* (/ minutes 60) 100) (% minutes 60)))
 
-;; (defadvice org-agenda-add-time-grid-maybe (around mde-org-agenda-grid-tweakify
-;;                                                   (list ndays todayp))
-;;   (if (member 'remove-match (car org-agenda-time-grid))
-;;       (cl-flet ((extract-window
-;;               (line)
-;;               (let ((start (get-text-property 1 'time-of-day line))
-;;                     (dur (get-text-property 1 'duration line)))
-;;                 (cond
-;;                  ((and start dur)
-;;                   (cons start
-;;                         (org-time-from-minutes
-;;                          (+ dur (org-time-to-minutes start)))))
-;;                  (start start)
-;;                  (t nil)))))
-;;         (let* ((windows (delq nil (mapcar 'extract-window list)))
-;;                (org-agenda-time-grid
-;;                 (list (car org-agenda-time-grid)
-;;                       (cadr org-agenda-time-grid)
-;;                       (remove-if
-;;                        (lambda (time)
-;;                          (find-if (lambda (w)
-;;                                     (if (numberp w)
-;;                                         (equal w time)
-;;                                       (and (>= time (car w))
-;;                                            (< time (cdr w)))))
-;;                                   windows))
-;;                        (caddr org-agenda-time-grid)))))
-;;           ad-do-it))
-;;     ad-do-it))
-;; (ad-activate 'org-agenda-add-time-grid-maybe)
-
 ;;; setup default file readers
 (eval-after-load "org"
   '(setcdr (assoc "\\.pdf\\'" org-file-apps) "open %s"))
@@ -492,8 +471,8 @@ RECURRENCES occasions."
 (setq ispell-program-name "/usr/local/bin/aspell")
 (setq ispell-dictionary "british")
 
-;; turn on flyspell for text and org-mode
-(dolist (hook '(text-mode-hook org-mode-hook))
+;; turn on flyspell for some modes
+(dolist (hook '(text-mode-hook))
   (add-hook hook (lambda () (flyspell-mode 1))))
 (dolist (hook '(change-log-mode-hook log-edit-mode-hook))
   (add-hook hook (lambda () (flyspell-mode -1))))
@@ -564,8 +543,9 @@ RECURRENCES occasions."
 (require 'magit)
 (global-set-key (kbd "C-c i") 'magit-status)
 (global-set-key (kbd "C-c b") 'magit-blame)
-(define-key ido-common-completion-map
-  (kbd "I") 'ido-enter-magit-status)
+
+;; smerge-mode
+(setq smerge-command-prefix (kbd "C-c v"))
 
 ;; key for opening a shell
 (global-set-key (kbd "C-c s") 'eshell)
@@ -630,6 +610,7 @@ RECURRENCES occasions."
 (defun my-c-electric-brace (arg)
   (interactive "P")
   (delete-horizontal-space t)
+  (insert " ")
   (c-electric-brace arg))
 
 ;; cc mode key bindings - applies to all CC modes (C, C++ etc.)
@@ -975,8 +956,14 @@ call to other-window-repeat or switch-prev-window."
 ;;; ESS (R)
 (add-to-path-init load-path "site-lisp/ess/lisp")
 (require 'ess-site)
+(defun ess-eval-defun-key ()
+  (interactive)
+  (ess-eval-function-or-paragraph t))
 (makehookedfun ess-mode-hook
-  (local-set-key (kbd "C-c z") #'ess-switch-to-inferior-or-script-buffer))
+  (local-set-key (kbd "C-c z") #'ess-switch-to-inferior-or-script-buffer)
+  (local-set-key (kbd "C-c C-c") #'ess-eval-defun-key)
+  (local-set-key (kbd "C-c C-k") #'ess-eval-buffer)
+  (local-set-key (kbd "C-c C-b") #'ess-force-buffer-current))
 ;;; iESS
 (defun clear-shell ()
    (interactive)
@@ -1026,7 +1013,8 @@ call to other-window-repeat or switch-prev-window."
 (makehookedfun python-mode-hook
   (local-set-key (kbd "C-c C-c") #'python-eval-defun-key)
   (local-set-key (kbd "C-c C-k") #'python-shell-send-buffer)
-  (local-set-key (kbd "C-c C-z") #'python-shell-switch-to-shell))
+  (local-set-key (kbd "C-c C-z") #'python-shell-switch-to-shell)
+  (local-set-key (kbd "C-c z") #'python-shell-switch-to-shell))
 
 ;;; mail stuff
 
@@ -1144,8 +1132,9 @@ call to other-window-repeat or switch-prev-window."
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(custom-safe-themes (quote ("f5e56ac232ff858afb08294fc3a519652ce8a165272e3c65165c42d6fe0262a0" default)))
- '(org-agenda-files (quote ("~/work/ferrets/writeup/paper.org" "/usr/users/ga002/kettlebg/org/appt.org" "/usr/users/ga002/kettlebg/org/diary.org" "/usr/users/ga002/kettlebg/org/holiday.org" "/usr/users/ga002/kettlebg/org/ideas.org" "/usr/users/ga002/kettlebg/org/journal.org" "/usr/users/ga002/kettlebg/org/tgac.org" "/usr/users/ga002/kettlebg/org/todo.org" "/usr/users/ga002/kettlebg/org/tools.org"))))
+ '(custom-safe-themes
+   (quote
+    ("f5e56ac232ff858afb08294fc3a519652ce8a165272e3c65165c42d6fe0262a0" default))))
 (custom-set-faces
  ;; custom-set-faces was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
